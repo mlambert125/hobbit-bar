@@ -17,3 +17,4 @@ tracing = { version = "0.1.41", features = [
   "release_max_level_info",
 ] }
 mlua = { version = "0.10.5", features = ["lua54"] }
+anyhow = "1.0.98"

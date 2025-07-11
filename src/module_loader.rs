@@ -2,21 +2,23 @@ use std::{cell::RefCell, fs};
 
 use mlua::{Lua, Table};
 use roxmltree::Document;
-use tracing::debug;
+use tracing::{debug, error, info, warn};
 
-pub fn load_module(name: &str) -> (gtk4::Box, Lua) {
+pub fn load_module(name: &str) -> anyhow::Result<(gtk4::Box, Lua)> {
     let lua = Lua::new();
     let builder = gtk4::Builder::new();
     let scope = gtk4::BuilderRustScope::new();
 
-    let code =
-        fs::read_to_string(format!("./bar-modules/{name}.lua")).expect("Failed to read Lua file");
+    let code = fs::read_to_string(format!("./bar-modules/{name}.lua"))?;
+    attach_global_functions(&lua)?;
 
-    let module: Table = lua.load(&code).eval().expect("Lua code failed to evaluate");
+    let module: Table = lua
+        .load(&code)
+        .eval()
+        .map_err(|err| anyhow::anyhow!("{err}"))?;
     let module_rc = RefCell::new(module);
 
-    let xml =
-        fs::read_to_string(format!("./bar-modules/{name}.ui")).expect("Failed to read UI file");
+    let xml = fs::read_to_string(format!("./bar-modules/{name}.ui"))?;
     let doc = Document::parse(&xml).expect("Failed to parse XML");
 
     for node in doc.descendants().filter(|n| n.has_tag_name("signal")) {
@@ -25,7 +27,6 @@ pub fn load_module(name: &str) -> (gtk4::Box, Lua) {
             let handler = handler.to_owned();
 
             scope.add_callback(handler.clone(), move |_| {
-                debug!("HANDLER: {handler}");
                 let lua_fn = module_rc
                     .borrow()
                     .get::<mlua::Function>(handler.clone())
@@ -44,5 +45,50 @@ pub fn load_module(name: &str) -> (gtk4::Box, Lua) {
 
     let module = builder.object::<gtk4::Box>("module").unwrap();
 
-    (module, lua)
+    Ok((module, lua))
+}
+
+pub fn attach_global_functions(lua: &Lua) -> anyhow::Result<()> {
+    lua.globals()
+        .set(
+            "debug",
+            lua.create_function(|_, msg: String| {
+                debug!(msg);
+                Ok(())
+            })
+            .map_err(|err| anyhow::anyhow!(format!("{err}")))?,
+        )
+        .map_err(|err| anyhow::anyhow!(format!("{err}")))?;
+    lua.globals()
+        .set(
+            "info",
+            lua.create_function(|_, msg: String| {
+                info!(msg);
+                Ok(())
+            })
+            .map_err(|err| anyhow::anyhow!(format!("{err}")))?,
+        )
+        .map_err(|err| anyhow::anyhow!(format!("{err}")))?;
+    lua.globals()
+        .set(
+            "warn",
+            lua.create_function(|_, msg: String| {
+                warn!(msg);
+                Ok(())
+            })
+            .map_err(|err| anyhow::anyhow!(format!("{err}")))?,
+        )
+        .map_err(|err| anyhow::anyhow!(format!("{err}")))?;
+    lua.globals()
+        .set(
+            "error",
+            lua.create_function(|_, msg: String| {
+                error!(msg);
+                Ok(())
+            })
+            .map_err(|err| anyhow::anyhow!(format!("{err}")))?,
+        )
+        .map_err(|err| anyhow::anyhow!(format!("{err}")))?;
+
+    Ok(())
 }

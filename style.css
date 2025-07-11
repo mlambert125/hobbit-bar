@@ -1,6 +1,7 @@
 window {
   background-color: transparent;
-
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .time {
@@ -37,6 +38,6 @@ window {
 }
 
 .module-clock button {
-  background-color: red;
+  background: linear-gradient(#171717, #070707 , #171717);
   color: white;
 }

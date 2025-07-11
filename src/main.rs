@@ -6,7 +6,7 @@ use gtk4::{Application, ApplicationWindow, Orientation};
 use gtk4::{CssProvider, prelude::*};
 use gtk4_layer_shell::{Edge, Layer, LayerShell};
 use mlua::{Lua, Table};
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::module_loader::load_module;
 
@@ -64,9 +64,18 @@ fn build_ui(app: &Application) {
             && let Some(module_name) = file_stem.to_str()
         {
             debug!("Loading module: {module_name}");
-            let (module, lua) = load_module(module_name);
-            window_box.append(&module);
-            Box::leak(Box::new(lua));
+
+            match load_module(module_name) {
+                Ok((bx, lua)) => {
+                    debug!("Loaded module: {module_name}");
+                    window_box.append(&bx);
+                    Box::leak(Box::new(lua));
+                }
+                Err(err) => {
+                    warn!("Failed to load module: {module_name}");
+                    debug!("{err}");
+                }
+            }
         }
     }
 
