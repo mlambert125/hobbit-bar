@@ -1,0 +1,3 @@
+[modules.clock]
+enabled = true
+format = "🕒 %H:%M"
