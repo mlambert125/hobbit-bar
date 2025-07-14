@@ -1,3 +1,4 @@
-[modules.clock]
-enabled = true
-format = "🕒 %H:%M"
+[modules]
+left = ["hypr_workspaces", "active_window"]
+center = ["media"]
+right = ["volume", "wifi", "bluetooth", "battery", "clock"]

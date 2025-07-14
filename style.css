@@ -4,40 +4,11 @@ window {
   padding-right: 10px;
 }
 
-.time {
-  transition: color 0.5s linear;
-  opacity: 1;
-  background: linear-gradient(#171717, #070707 , #171717);
-  color: #ccc;
-  border-radius: 10px;
-  padding-left: 20px;
-  padding-right: 20px;
-  margin-left: 10px;
-  margin-right: 10px;
-  margin-bottom: 5px;
-  box-shadow: 0px 0px 5px #111;
-}
-
-.time:hover {
-  color: red;
-}
-
-.popover contents {
-  margin-top: 20px;
-  border-radius: 0;
-  background-color: black;
-  color: hotpink;
-  border: 1px solid #777;
-}
-
-.popover-button {
+.bar-module {
+  background: linear-gradient(#171717, #070707, #171717);
   color: white;
   border: 1px solid white;
-  border-radius: 5px;
-  background-color: blue;
-}
-
-.module-clock button {
-  background: linear-gradient(#171717, #070707 , #171717);
-  color: white;
+  border-radius: 50px;
+  padding-left: 10px;
+  padding-right: 10px;
 }

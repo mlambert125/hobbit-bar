@@ -1,12 +1,31 @@
 use gdk4::Display;
-use gdk4_wayland::{WaylandDisplay, WaylandSurface};
-use glib::clone;
 use gtk4::{Application, ApplicationWindow, Orientation, Popover};
 use gtk4::{CssProvider, prelude::*};
 use gtk4_layer_shell::{Edge, Layer, LayerShell};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
+use tracing::info;
+
+mod modules;
 
 const APP_ID: &str = "org.hobbit125.hobbit-bar";
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct ConfigModules {
+    #[serde(default)]
+    pub left: Vec<String>,
+    #[serde(default)]
+    pub center: Vec<String>,
+    #[serde(default)]
+    pub right: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct Config {
+    #[serde(default)]
+    pub modules: ConfigModules,
+}
 
 fn main() -> glib::ExitCode {
     tracing_config::init!();
@@ -15,8 +34,52 @@ fn main() -> glib::ExitCode {
     app.run()
 }
 
+fn get_module_map() -> HashMap<String, fn(&Config) -> gtk4::Box> {
+    let mut map = HashMap::new();
+    map.insert(
+        String::from("active_window"),
+        modules::module_active_window as fn(&Config) -> gtk4::Box,
+    );
+    map.insert(
+        String::from("battery"),
+        modules::module_battery as fn(&Config) -> gtk4::Box,
+    );
+    map.insert(
+        String::from("bluetooth"),
+        modules::module_bluetooth as fn(&Config) -> gtk4::Box,
+    );
+    map.insert(
+        String::from("clock"),
+        modules::module_clock as fn(&Config) -> gtk4::Box,
+    );
+    map.insert(
+        String::from("hypr_workspaces"),
+        modules::module_hypr_workspaces as fn(&Config) -> gtk4::Box,
+    );
+    map.insert(
+        String::from("media"),
+        modules::module_media as fn(&Config) -> gtk4::Box,
+    );
+    map.insert(
+        String::from("volume"),
+        modules::module_volume as fn(&Config) -> gtk4::Box,
+    );
+    map.insert(
+        String::from("wifi"),
+        modules::module_wifi as fn(&Config) -> gtk4::Box,
+    );
+    map
+}
+
 fn build_ui(app: &Application) {
     let provider = CssProvider::new();
+    let config_text = std::fs::read_to_string("config.toml").unwrap();
+    let config = toml::from_str::<Config>(&config_text).unwrap();
+    let mod_map = get_module_map();
+
+    info!("LEFT:   {:?}", config.modules.left);
+    info!("CENTER: {:?}", config.modules.center);
+    info!("RIGHT:  {:?}", config.modules.right);
 
     provider.load_from_path(Path::new("style.css"));
 
@@ -43,76 +106,44 @@ fn build_ui(app: &Application) {
     window.set_anchor(Edge::Right, true);
     window.set_anchor(Edge::Top, true);
 
-    let button = gtk4::Button::new();
-    let label = gtk4::Label::new(Some(""));
-    let time_of_day = chrono::Local::now().format("%I:%M:%S %p").to_string();
-
-    label.set_markup(&format!("<span font_desc=\"12.0\">{time_of_day}</span>"));
-    label.add_css_class("time");
-
-    // Create the popover (initially hidden)
-    let popover_content = gtk4::Box::new(Orientation::Vertical, 4);
-    popover_content.append(&gtk4::Label::new(Some("Today is...")));
-    popover_content.append(&gtk4::Label::new(Some("Wednesday, July 10")));
-
-    let popover = Popover::builder()
-        .child(&popover_content)
-        .has_arrow(true)
-        .build();
-
-    popover.add_css_class("popover");
-    popover.set_autohide(true);
-    popover.set_has_arrow(false);
-    popover.set_parent(&label); // Anchor to the button
-
-    let popover_button = gtk4::Button::with_label("Close");
-    popover_button.add_css_class("popover-button");
-    popover_content.append(&popover_button);
-    popover_button.connect_clicked(clone!(
-        #[weak]
-        popover,
-        move |_| {
-            popover.popdown();
-        }
-    ));
-
-    // Toggle on click
-    button.connect_clicked(clone!(
-        #[weak]
-        popover,
-        move |_| {
-            if popover.is_visible() {
-                popover.popdown();
-            } else {
-                popover.popup();
-            }
-        }
-    ));
-
-    button.set_child(Some(&label));
-    button.set_halign(gtk4::Align::End);
-    glib::timeout_add_seconds_local(1, move || -> glib::ControlFlow {
-        let time_of_day = chrono::Local::now().format("%I:%M:%S %p").to_string();
-        label.set_markup(&format!("<span font_desc=\"12.0\">{time_of_day}</span>"));
-        glib::ControlFlow::Continue
-    });
-
-    window.connect_realize(|win| {
-        let gdk_surface = win.surface().unwrap();
-        let gdk_display = SurfaceExt::display(&gdk_surface);
-
-        if let Some(wl_display) = gdk_display.downcast_ref::<WaylandDisplay>() {
-            println!("Running on Wayland.");
-            if let Some(wl_surface) = gdk_surface.downcast_ref::<WaylandSurface>() {
-                println!("Wayland surface found.");
-            }
-        }
-    });
-
-    let window_box = gtk4::Box::new(Orientation::Horizontal, 10);
+    let window_box = gtk4::Box::new(Orientation::Horizontal, 0);
     window_box.set_halign(gtk4::Align::Fill);
 
-    window_box.append(&button);
+    let left_box = gtk4::Box::new(Orientation::Horizontal, 10);
+    let left_spacer = gtk4::Box::new(Orientation::Horizontal, 0);
+    left_spacer.set_hexpand(true);
+    let center_box = gtk4::Box::new(Orientation::Horizontal, 10);
+    let right_spacer = gtk4::Box::new(Orientation::Horizontal, 0);
+    right_spacer.set_hexpand(true);
+    let right_box = gtk4::Box::new(Orientation::Horizontal, 10);
+
+    let left_mods = config.modules.left.clone();
+    let center_mods = config.modules.center.clone();
+    let right_mods = config.modules.right.clone();
+
+    for mod_name in left_mods {
+        let f = mod_map.get(&mod_name).unwrap();
+        let mod_box = f(&config);
+        left_box.append(&mod_box);
+    }
+
+    for mod_name in center_mods {
+        let f = mod_map.get(&mod_name).unwrap();
+        let mod_box = f(&config);
+        center_box.append(&mod_box);
+    }
+
+    for mod_name in right_mods {
+        let f = mod_map.get(&mod_name).unwrap();
+        let mod_box = f(&config);
+        right_box.append(&mod_box);
+    }
+
+    window_box.append(&left_box);
+    window_box.append(&left_spacer);
+    window_box.append(&center_box);
+    window_box.append(&right_spacer);
+    window_box.append(&right_box);
 
     window.set_child(Some(&window_box));
 
