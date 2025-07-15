@@ -1,4 +1,15 @@
-[modules]
-left = ["hypr_workspaces", "active_window"]
-center = ["media"]
-right = ["volume", "wifi", "bluetooth", "battery", "clock"]
+modules = [
+  "Spacer",
+  "HyprWorkspaces",
+  "ActiveWindow",
+  "Spacer",
+  "Media",
+  "Volume",
+  "Spacer",
+  "Wifi",
+  "Bluetooth",
+  "Spacer",
+  "Battery",
+  "Clock",
+  "Spacer",
+]

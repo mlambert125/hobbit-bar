@@ -1,9 +1,8 @@
 use gdk4::Display;
-use gtk4::{Application, ApplicationWindow, Orientation, Popover};
+use gtk4::{Application, ApplicationWindow, Orientation};
 use gtk4::{CssProvider, prelude::*};
 use gtk4_layer_shell::{Edge, Layer, LayerShell};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::Path;
 use tracing::info;
 
@@ -11,20 +10,39 @@ mod modules;
 
 const APP_ID: &str = "org.hobbit125.hobbit-bar";
 
-#[derive(Serialize, Deserialize, Debug, Default)]
-struct ConfigModules {
-    #[serde(default)]
-    pub left: Vec<String>,
-    #[serde(default)]
-    pub center: Vec<String>,
-    #[serde(default)]
-    pub right: Vec<String>,
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+enum BarModule {
+    ActiveWindow,
+    Battery,
+    Bluetooth,
+    Clock,
+    HyprWorkspaces,
+    Media,
+    Volume,
+    Wifi,
+    Spacer,
+}
+
+impl BarModule {
+    pub fn call(&self, config: &Config) -> gtk4::Box {
+        match self {
+            BarModule::ActiveWindow => modules::module_active_window(config),
+            BarModule::Battery => modules::module_battery(config),
+            BarModule::Bluetooth => modules::module_bluetooth(config),
+            BarModule::Clock => modules::module_clock(config),
+            BarModule::HyprWorkspaces => modules::module_hypr_workspaces(config),
+            BarModule::Media => modules::module_media(config),
+            BarModule::Volume => modules::module_volume(config),
+            BarModule::Wifi => modules::module_wifi(config),
+            BarModule::Spacer => modules::module_spacer(config),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 struct Config {
     #[serde(default)]
-    pub modules: ConfigModules,
+    pub modules: Vec<BarModule>,
 }
 
 fn main() -> glib::ExitCode {
@@ -34,52 +52,12 @@ fn main() -> glib::ExitCode {
     app.run()
 }
 
-fn get_module_map() -> HashMap<String, fn(&Config) -> gtk4::Box> {
-    let mut map = HashMap::new();
-    map.insert(
-        String::from("active_window"),
-        modules::module_active_window as fn(&Config) -> gtk4::Box,
-    );
-    map.insert(
-        String::from("battery"),
-        modules::module_battery as fn(&Config) -> gtk4::Box,
-    );
-    map.insert(
-        String::from("bluetooth"),
-        modules::module_bluetooth as fn(&Config) -> gtk4::Box,
-    );
-    map.insert(
-        String::from("clock"),
-        modules::module_clock as fn(&Config) -> gtk4::Box,
-    );
-    map.insert(
-        String::from("hypr_workspaces"),
-        modules::module_hypr_workspaces as fn(&Config) -> gtk4::Box,
-    );
-    map.insert(
-        String::from("media"),
-        modules::module_media as fn(&Config) -> gtk4::Box,
-    );
-    map.insert(
-        String::from("volume"),
-        modules::module_volume as fn(&Config) -> gtk4::Box,
-    );
-    map.insert(
-        String::from("wifi"),
-        modules::module_wifi as fn(&Config) -> gtk4::Box,
-    );
-    map
-}
-
 fn build_ui(app: &Application) {
     let provider = CssProvider::new();
     let config_text = std::fs::read_to_string("config.toml").unwrap();
     let config = toml::from_str::<Config>(&config_text).unwrap();
-    let mod_map = get_module_map();
 
-    info!("LEFT:   {:?}", config.modules.left);
-    info!("CENTER: {:?}", config.modules.center);
-    info!("RIGHT:  {:?}", config.modules.right);
+    info!("Modules:   {:?}", config.modules);
 
     provider.load_from_path(Path::new("style.css"));
 
@@ -109,41 +87,10 @@ fn build_ui(app: &Application) {
     let window_box = gtk4::Box::new(Orientation::Horizontal, 0);
     window_box.set_halign(gtk4::Align::Fill);
 
-    let left_box = gtk4::Box::new(Orientation::Horizontal, 10);
-    let left_spacer = gtk4::Box::new(Orientation::Horizontal, 0);
-    left_spacer.set_hexpand(true);
-    let center_box = gtk4::Box::new(Orientation::Horizontal, 10);
-    let right_spacer = gtk4::Box::new(Orientation::Horizontal, 0);
-    right_spacer.set_hexpand(true);
-    let right_box = gtk4::Box::new(Orientation::Horizontal, 10);
-
-    let left_mods = config.modules.left.clone();
-    let center_mods = config.modules.center.clone();
-    let right_mods = config.modules.right.clone();
-
-    for mod_name in left_mods {
-        let f = mod_map.get(&mod_name).unwrap();
-        let mod_box = f(&config);
-        left_box.append(&mod_box);
+    for bar_mod in config.modules.clone() {
+        let mod_box = bar_mod.call(&config);
+        window_box.append(&mod_box);
     }
-
-    for mod_name in center_mods {
-        let f = mod_map.get(&mod_name).unwrap();
-        let mod_box = f(&config);
-        center_box.append(&mod_box);
-    }
-
-    for mod_name in right_mods {
-        let f = mod_map.get(&mod_name).unwrap();
-        let mod_box = f(&config);
-        right_box.append(&mod_box);
-    }
-
-    window_box.append(&left_box);
-    window_box.append(&left_spacer);
-    window_box.append(&center_box);
-    window_box.append(&right_spacer);
-    window_box.append(&right_box);
 
     window.set_child(Some(&window_box));
 
